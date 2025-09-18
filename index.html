@@ -42,7 +42,9 @@
 
             // --- FUNCIÓN PARA CARGAR Y MOSTRAR LOS DATOS ---
             async function loadTerritories() {
-                const { data, error } = await db.from('territorios').select('*').order('created_at', { ascending: false });
+                // ESTA ES LA LÍNEA CORREGIDA. Eliminamos el .order()
+                const { data, error } = await db.from('territorios').select('*');
+                
                 if (error) { console.error('Error cargando territorios:', error); return; }
                 tableBody.innerHTML = '';
                 data.forEach(territorio => {
@@ -55,34 +57,10 @@
             // --- FUNCIÓN PARA GUARDAR UN NUEVO TERRITORIO ---
             saveChangesBtn.addEventListener('click', async function() {
                 if (!territorioForm.checkValidity()) { territorioForm.reportValidity(); return; }
-                
-                // NUEVO: Función para convertir campos vacíos a null
-                const getValueOrNull = (id) => {
-                    const value = document.getElementById(id).value;
-                    return value === '' ? null : value;
-                };
-
-                const newTerritory = { 
-                    mapa: getValueOrNull('territorio-mapa'), 
-                    territorio_num: getValueOrNull('territorio-num'), 
-                    asignado: getValueOrNull('territorio-asignado'), 
-                    fecha: getValueOrNull('territorio-fecha'), 
-                    estado: getValueOrNull('territorio-estado'), 
-                    cara_faltante: getValueOrNull('territorio-cara'), 
-                    calle_zona: getValueOrNull('territorio-calle'), 
-                    descripcion: getValueOrNull('territorio-desc') 
-                };
-                
+                const getValueOrNull = (id) => { const value = document.getElementById(id).value; return value === '' ? null : value; };
+                const newTerritory = { mapa: getValueOrNull('territorio-mapa'), territorio_num: getValueOrNull('territorio-num'), asignado: getValueOrNull('territorio-asignado'), fecha: getValueOrNull('territorio-fecha'), estado: getValueOrNull('territorio-estado'), cara_faltante: getValueOrNull('territorio-cara'), calle_zona: getValueOrNull('territorio-calle'), descripcion: getValueOrNull('territorio-desc') };
                 const { error } = await db.from('territorios').insert([newTerritory]);
-                
-                if (error) { 
-                    console.error('Error al guardar:', error); 
-                    alert('Hubo un error al guardar. Revisa la consola para más detalles (F12).'); 
-                } else { 
-                    territorioForm.reset(); 
-                    territorioModal.hide(); 
-                    await loadTerritories(); 
-                }
+                if (error) { console.error('Error al guardar:', error); alert('Hubo un error al guardar. Revisa la consola para más detalles (F12).'); } else { territorioForm.reset(); territorioModal.hide(); await loadTerritories(); }
             });
 
             // --- FUNCIÓN PARA BORRAR UN TERRITORIO ---
