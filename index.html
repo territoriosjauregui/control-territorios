@@ -77,8 +77,20 @@
             // --- CÓDIGO DE UTILIDADES (TEMA, PDF, FILTROS) ---
             const themeToggler = document.getElementById('theme-toggler'); const pdfButton = document.getElementById('btn-pdf'); const territorioModalEl = document.getElementById('territorioModal'); const estadoSelect = document.getElementById('territorio-estado'); const incompleteFieldsWrapper = document.getElementById('campos-incompletos-wrapper'); const filterEstado = document.getElementById('filter-estado'); const filterTerritorio = document.getElementById('filter-territorio'); const filterAsignado = document.getElementById('filter-asignado'); const filterFecha = document.getElementById('filter-fecha'); const themeIcon = themeToggler.querySelector('i'); const currentTheme = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-bs-theme', currentTheme); updateThemeIcon(currentTheme); themeToggler.addEventListener('click', () => { let newTheme = document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark'; document.documentElement.setAttribute('data-bs-theme', newTheme); localStorage.setItem('theme', newTheme); updateThemeIcon(newTheme); }); function updateThemeIcon(theme) { themeIcon.className = theme === 'dark' ? 'bi bi-moon-stars-fill' : 'bi bi-sun-fill'; } function toggleIncompleteFields() { incompleteFieldsWrapper.style.display = (estadoSelect.value === 'incompleto') ? 'block' : 'none'; } estadoSelect.addEventListener('change', toggleIncompleteFields); territorioModalEl.addEventListener('show.bs.modal', toggleIncompleteFields);
             
-            // FUNCIÓN DE PDF CORREGIDA
-            pdfButton.addEventListener('click', function () { const { jsPDF } = window.jspdf; const doc = new jsPDF(); const headers = Array.from(document.querySelectorAll('#tabla-territorios thead th')).map(th => th.textContent).slice(0, -1); const body = Array.from(document.querySelectorAll('#tabla-territorios tbody tr')).filter(r => r.style.display !== 'none').map(r => Array.from(r.querySelectorAll('td')).map(td => td.textContent).slice(0, -1)); doc.autoTable({ head: [headers], body: body, startY: 20, headStyles: { fillColor: [41, 49, 51] }, didDrawPage: (data) => { doc.setFontSize(18); doc.text("Reporte de Territorios - Jáuregui", data.settings.margin.left, 15); } }); doc.save('reporte-territorios-jauregui.pdf'); });
+            // FUNCIÓN DE PDF CORREGIDA Y MEJORADA
+            pdfButton.addEventListener('click', function () { 
+                const { jsPDF } = window.jspdf; 
+                const doc = new jsPDF(); 
+                const headers = Array.from(document.querySelectorAll('#tabla-territorios thead th')).map(th => th.textContent).slice(0, -1); 
+                
+                // ¡LA MEJORA ESTÁ AQUÍ! Filtramos solo las filas visibles.
+                const body = Array.from(document.querySelectorAll('#tabla-territorios tbody tr'))
+                                  .filter(row => row.style.display !== 'none') 
+                                  .map(row => Array.from(row.querySelectorAll('td')).map(td => td.textContent).slice(0, -1)); 
+                                  
+                doc.autoTable({ head: [headers], body: body, startY: 20, headStyles: { fillColor: [41, 49, 51] }, didDrawPage: (data) => { doc.setFontSize(18); doc.text("Reporte de Territorios - Jáuregui", data.settings.margin.left, 15); } }); 
+                doc.save('reporte-territorios-jauregui.pdf'); 
+            });
             
             function getEstadoBadge(estado) { switch(estado) { case 'completado': return '<span class="badge bg-success">Completado</span>'; case 'incompleto': return '<span class="badge bg-danger">Incompleto</span>'; default: return '<span class="badge bg-warning text-dark">Pendiente</span>'; } } function filterTable() { const vE=filterEstado.value,vT=filterTerritorio.value.toLowerCase(),vA=filterAsignado.value.toLowerCase(),vF=filterFecha.value.toLowerCase(); tableBody.querySelectorAll('tr').forEach(row => { const cE=row.cells[4].textContent.trim(),cT=row.cells[1].textContent.toLowerCase(),cA=row.cells[2].textContent.toLowerCase(),cF=row.cells[3].textContent.toLowerCase(); const mE=vE===''||cE===vE,mT=cT.startsWith(vT),mA=cA.includes(vA),mF=cF.includes(vF); row.style.display = mE&&mT&&mA&&mF ? '' : 'none'; }); } filterEstado.addEventListener('change', filterTable); filterTerritorio.addEventListener('input', filterTable); filterAsignado.addEventListener('input', filterTable); filterFecha.addEventListener('input', filterTable);
 
