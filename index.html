@@ -88,7 +88,7 @@
                                   .filter(row => row.style.display !== 'none') 
                                   .map(row => Array.from(row.querySelectorAll('td')).map(td => td.textContent).slice(0, -1)); 
                                   
-                doc.autoTable({ head: [headers], body: body, startY: 20, headStyles: { fillColor: [41, 49, 51] }, didDrawPage: (data) => { doc.setFontSize(18); doc.text("Reporte de Territorios - Jáuregui", data.settings.margin.left, 15); } }); 
+                doc.autoTable({ head: [headers], body: body, startY: 20, headStyles: { fillColor: [41, 49, 51] }, didDrawPage: (data) => { doc.setFontSize(18); doc.text("Reporte de Territorios - Congregación Jáuregui", data.settings.margin.left, 15); } }); 
                 doc.save('reporte-territorios-jauregui.pdf'); 
             });
             
@@ -99,4 +99,5 @@
         });
     </script>
 </body>
+
 </html>
