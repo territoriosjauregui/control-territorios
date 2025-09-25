@@ -27,8 +27,9 @@
                 <div class="modal-body">
                     <form id="territorioForm">
                         <div class="mb-3"><label class="form-label">Mapa</label><select class="form-select" id="territorio-mapa" required><option selected disabled value="">Selecciona un mapa...</option><option>Pueblo Nuevo</option><option>Las Casuarinas</option><option>Cortínez</option><option>Jáuregui</option><option>Barrio Loreto</option><option>Clotilde y Moras</option><option>El Pinar</option></select></div>
-                        <!-- CAMBIO AQUÍ: Ahora es un select -->
-                        <div class="mb-3"><label class="form-label">Número de Territorio</label><select class="form-select" id="territorio-num" required disabled><option selected disabled value="">Primero selecciona un mapa...</option></select></div>
+                        <!-- CAMBIO AQUÍ: Ahora permite selección múltiple -->
+                        <div class="mb-3"><label class="form-label">Número de Territorio</label><select class="form-select" id="territorio-num" required disabled multiple size="5"><option disabled value="">Primero selecciona un mapa...</option></select>
+                        <small class="form-text text-muted">Mantén Ctrl (o Cmd en Mac) para seleccionar varios.</small></div>
                         <div class="mb-3"><label class="form-label">Asignado a</label><input type="text" class="form-control" id="territorio-asignado"></div><div class="mb-3"><label class="form-label">Fecha de Asignación</label><input type="date" class="form-control" id="territorio-fecha"></div><div class="mb-3"><label class="form-label">Estado</label><select class="form-select" id="territorio-estado"><option value="pendiente">Pendiente</option><option value="incompleto">Incompleto</option><option value="completado">Completado</option></select></div><div id="campos-incompletos-wrapper" style="display: none;"><div class="mb-3"><label class="form-label">Cara faltante</label><select class="form-select" id="territorio-cara"><option>Par</option><option>Impar</option></select></div><div class="mb-3"><label class="form-label">Calle / Zona</label><input type="text" class="form-control" id="territorio-calle"></div></div><div class="mb-3"><label class="form-label">Descripción</label><textarea class="form-control" id="territorio-desc" rows="3"></textarea></div>
                     </form>
                 </div>
@@ -51,12 +52,12 @@
             // --- VARIABLES GLOBALES Y "LISTA MAESTRA" ---
             let allTerritories = [];
             const TERRITORIOS_POR_MAPA = {
-                "Pueblo Nuevo": Array.from({length: 42 - 18 + 1}, (_, i) => 18 + i), // 18 al 42
-                "Las Casuarinas": Array.from({length: 54 - 51 + 1}, (_, i) => 51 + i), // 51 al 54
-                "Cortínez": Array.from({length: 49 - 43 + 1}, (_, i) => 43 + i),       // 43 al 49
-                "Jáuregui": Array.from({length: 17 - 8 + 1}, (_, i) => 8 + i),         // 8 al 17
-                "Barrio Loreto": Array.from({length: 4 - 1 + 1}, (_, i) => 1 + i),     // 1 al 4
-                "Clotilde y Moras": Array.from({length: 7 - 5 + 1}, (_, i) => 5 + i), // 5 al 7
+                "Pueblo Nuevo": Array.from({length: 42 - 18 + 1}, (_, i) => 18 + i),
+                "Las Casuarinas": Array.from({length: 54 - 51 + 1}, (_, i) => 51 + i),
+                "Cortínez": Array.from({length: 49 - 43 + 1}, (_, i) => 43 + i),
+                "Jáuregui": Array.from({length: 17 - 8 + 1}, (_, i) => 8 + i),
+                "Barrio Loreto": Array.from({length: 4 - 1 + 1}, (_, i) => 1 + i),
+                "Clotilde y Moras": [5, 6, 7], // CORREGIDO
                 "El Pinar": [50]
             };
 
@@ -71,55 +72,49 @@
             const numSelect = document.getElementById('territorio-num');
 
             // --- CARGAR DATOS ---
-            async function loadTerritories() {
-                const { data, error } = await db.from('territorios').select('*');
-                if (error) { console.error('Error cargando territorios:', error); return; }
-                allTerritories = data;
-                renderTable(allTerritories);
-            }
-
-            // --- RENDERIZAR TABLA ---
-            function renderTable(data) { /* (Sin cambios) */ tableBody.innerHTML = ''; data.forEach(t => { const newRow = tableBody.insertRow(); newRow.dataset.id = t.id; newRow.innerHTML = `<td>${t.mapa||'-'}</td><td>${t.territorio_num||'-'}</td><td>${t.asignado||'-'}</td><td>${t.fecha||'-'}</td><td>${getEstadoBadge(t.estado)}</td><td>${t.estado==='incompleto'?(t.cara_faltante||'-'):'-'}</td><td>${t.estado==='incompleto'?(t.calle_zona||'-'):'-'}</td><td>${t.descripcion||'-'}</td><td><button class="btn btn-sm btn-warning btn-edit"><i class="bi bi-pencil-fill"></i></button><button class="btn btn-sm btn-danger btn-delete"><i class="bi bi-trash-fill"></i></button></td>`; }); }
+            async function loadTerritories() { /* ... (sin cambios) ... */ const { data, error } = await db.from('territorios').select('*'); if (error) { console.error('Error cargando:', error); return; } allTerritories = data; renderTable(allTerritories); }
+            function renderTable(data) { /* ... (sin cambios) ... */ tableBody.innerHTML = ''; data.forEach(t => { const newRow = tableBody.insertRow(); newRow.dataset.id = t.id; newRow.innerHTML = `<td>${t.mapa||'-'}</td><td>${t.territorio_num||'-'}</td><td>${t.asignado||'-'}</td><td>${t.fecha||'-'}</td><td>${getEstadoBadge(t.estado)}</td><td>${t.estado==='incompleto'?(t.cara_faltante||'-'):'-'}</td><td>${t.estado==='incompleto'?(t.calle_zona||'-'):'-'}</td><td>${t.descripcion||'-'}</td><td><button class="btn btn-sm btn-warning btn-edit"><i class="bi bi-pencil-fill"></i></button><button class="btn btn-sm btn-danger btn-delete"><i class="bi bi-trash-fill"></i></button></td>`; }); }
 
             // --- LÓGICA DEL FORMULARIO DINÁMICO ---
-            mapSelect.addEventListener('change', () => {
-                const selectedMap = mapSelect.value;
-                if (!selectedMap) return;
+            mapSelect.addEventListener('change', () => { /* ... (sin cambios) ... */ const selectedMap = mapSelect.value; if (!selectedMap) return; const allPossibleNumbers = TERRITORIOS_POR_MAPA[selectedMap] || []; const usedNumbers = allTerritories.filter(t => t.mapa === selectedMap).map(t => t.territorio_num); const availableNumbers = allPossibleNumbers.filter(num => !usedNumbers.includes(num)); numSelect.innerHTML = ''; availableNumbers.forEach(num => { numSelect.innerHTML += `<option value="${num}">${num}</option>`; }); if(availableNumbers.length === 0) { numSelect.innerHTML = '<option disabled>No hay números disponibles</option>';} numSelect.disabled = false; });
+            addTerritoryBtn.addEventListener('click', () => { /* ... (sin cambios) ... */ territorioForm.reset(); modalLabel.textContent = 'Añadir Territorio'; numSelect.innerHTML = '<option disabled>Primero selecciona un mapa...</option>'; numSelect.disabled = true; territorioModal.show(); });
 
-                // 1. Obtener todos los números posibles para este mapa
-                const allPossibleNumbers = TERRITORIOS_POR_MAPA[selectedMap] || [];
+            // --- GUARDAR TERRITORIOS (AHORA MÚLTIPLES) ---
+            saveChangesBtn.addEventListener('click', async function() {
+                if (!territorioForm.checkValidity()) { territorioForm.reportValidity(); return; }
 
-                // 2. Obtener los números que ya están en uso para este mapa
-                const usedNumbers = allTerritories
-                    .filter(t => t.mapa === selectedMap)
-                    .map(t => t.territorio_num);
+                // Obtener todos los números seleccionados
+                const selectedNumbers = Array.from(numSelect.selectedOptions).map(option => option.value);
 
-                // 3. Calcular los números disponibles
-                const availableNumbers = allPossibleNumbers.filter(num => !usedNumbers.includes(num));
+                if (selectedNumbers.length === 0) {
+                    alert("Por favor, selecciona al menos un número de territorio.");
+                    return;
+                }
 
-                // 4. Llenar el dropdown de números
-                numSelect.innerHTML = '<option selected disabled value="">Selecciona un número...</option>';
-                availableNumbers.forEach(num => {
-                    numSelect.innerHTML += `<option value="${num}">${num}</option>`;
-                });
-                numSelect.disabled = false;
+                const getValueOrNull = (id) => { const value = document.getElementById(id).value; return value === '' ? null : value; };
+                const commonData = { mapa: getValueOrNull('territorio-mapa'), asignado: getValueOrNull('territorio-asignado'), fecha: getValueOrNull('territorio-fecha'), estado: getValueOrNull('territorio-estado'), cara_faltante: getValueOrNull('territorio-cara'), calle_zona: getValueOrNull('territorio-calle'), descripcion: getValueOrNull('territorio-desc') };
+
+                // Crear un array de territorios para insertar
+                const territoriesToInsert = selectedNumbers.map(num => ({
+                    ...commonData,
+                    territorio_num: num
+                }));
+
+                const { error } = await db.from('territorios').insert(territoriesToInsert);
+
+                if (error) { 
+                    console.error('Error al guardar:', error); 
+                    alert('Hubo un error al guardar.'); 
+                } else { 
+                    territorioForm.reset(); 
+                    territorioModal.hide(); 
+                    await loadTerritories(); 
+                }
             });
             
-            addTerritoryBtn.addEventListener('click', () => {
-                territorioForm.reset();
-                modalLabel.textContent = 'Añadir Territorio';
-                numSelect.innerHTML = '<option selected disabled value="">Primero selecciona un mapa...</option>';
-                numSelect.disabled = true;
-                territorioModal.show();
-            });
-
-            // --- GUARDAR TERRITORIO ---
-            saveChangesBtn.addEventListener('click', async function() { if (!territorioForm.checkValidity()) { territorioForm.reportValidity(); return; } const getValueOrNull = (id) => { const value = document.getElementById(id).value; return value === '' ? null : value; }; const newTerritory = { mapa: getValueOrNull('territorio-mapa'), territorio_num: getValueOrNull('territorio-num'), asignado: getValueOrNull('territorio-asignado'), fecha: getValueOrNull('territorio-fecha'), estado: getValueOrNull('territorio-estado'), cara_faltante: getValueOrNull('territorio-cara'), calle_zona: getValueOrNull('territorio-calle'), descripcion: getValueOrNull('territorio-desc') }; const { error } = await db.from('territorios').insert([newTerritory]); if (error) { console.error('Error al guardar:', error); alert('Hubo un error al guardar.'); } else { territorioForm.reset(); territorioModal.hide(); await loadTerritories(); } });
-
-            // --- BORRAR Y EDITAR ---
-            // (La lógica de borrar y editar no necesita cambios para esta funcionalidad)
-            tableBody.addEventListener('click', async function(event) { const deleteButton = event.target.closest('.btn-delete'); if (deleteButton) { const row = deleteButton.closest('tr'); const territoryId = row.dataset.id; if (confirm('¿Estás seguro?')) { const { error } = await db.from('territorios').delete().eq('id', territoryId); if (error) { console.error('Error al borrar:', error); } else { await loadTerritories(); } } } });
-
+            // --- BORRAR Y EDITAR (Sin cambios, editar seguirá siendo individual) ---
+            tableBody.addEventListener('click', async function(event) { /* ... (sin cambios) ... */ const deleteButton = event.target.closest('.btn-delete'); if (deleteButton) { const row = deleteButton.closest('tr'); const territoryId = row.dataset.id; if (confirm('¿Estás seguro?')) { const { error } = await db.from('territorios').delete().eq('id', territoryId); if (error) { console.error('Error al borrar:', error); } else { await loadTerritories(); } } } });
+            
             // --- CÓDIGO DE UTILIDADES ---
             const themeToggler = document.getElementById('theme-toggler'); const pdfButton = document.getElementById('btn-pdf'); const territorioModalEl = document.getElementById('territorioModal'); const estadoSelect = document.getElementById('territorio-estado'); const incompleteFieldsWrapper = document.getElementById('campos-incompletos-wrapper'); const filterEstado = document.getElementById('filter-estado'); const filterTerritorio = document.getElementById('filter-territorio'); const filterAsignado = document.getElementById('filter-asignado'); const filterFecha = document.getElementById('filter-fecha'); const themeIcon = themeToggler.querySelector('i'); const currentTheme = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-bs-theme', currentTheme); updateThemeIcon(currentTheme); themeToggler.addEventListener('click', () => { let newTheme = document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark'; document.documentElement.setAttribute('data-bs-theme', newTheme); localStorage.setItem('theme', newTheme); updateThemeIcon(newTheme); }); function updateThemeIcon(theme) { themeIcon.className = theme === 'dark' ? 'bi bi-moon-stars-fill' : 'bi bi-sun-fill'; } function toggleIncompleteFields() { incompleteFieldsWrapper.style.display = (estadoSelect.value === 'incompleto') ? 'block' : 'none'; } estadoSelect.addEventListener('change', toggleIncompleteFields); territorioModalEl.addEventListener('show.bs.modal', toggleIncompleteFields);
             pdfButton.addEventListener('click', function () { const { jsPDF } = window.jspdf; const doc = new jsPDF(); const headers = Array.from(document.querySelectorAll('#tabla-territorios thead th')).map(th => th.textContent).slice(0, -1); const body = Array.from(document.querySelectorAll('#tabla-territorios tbody tr')).filter(r => r.style.display !== 'none').map(r => Array.from(r.querySelectorAll('td')).map(td => td.textContent).slice(0, -1)); doc.autoTable({ head: [headers], body: body, startY: 20, headStyles: { fillColor: [41, 49, 51] }, didDrawPage: (data) => { doc.setFontSize(18); doc.text("Reporte de Territorios - Congregación Jáuregui", data.settings.margin.left, 15); } }); doc.save('reporte-territorios-jauregui.pdf'); });
