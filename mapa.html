@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa Maestro de Territorios</title>
+    <!-- CSS de Bootstrap y Leaflet -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body, html { height: 100%; margin: 0; padding: 0; display: flex; flex-direction: column; }
+        #map-container { flex-grow: 1; display: flex; }
+        #map { width: 100%; height: 100%; }
+        #sidebar { width: 350px; background-color: var(--bs-body-bg); padding: 1rem; overflow-y: auto; border-left: 1px solid var(--bs-border-color); }
+        .territory-list-item { cursor: pointer; }
+        .territory-list-item:hover { background-color: var(--bs-secondary-bg); }
+        .file-input-wrapper { position: relative; overflow: hidden; display: inline-block; }
+        .file-input-wrapper input[type=file] { font-size: 100px; position: absolute; left: 0; top: 0; opacity: 0; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg bg-body-tertiary shadow-sm">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Mapa Maestro</a>
+            <a href="index.html" class="btn btn-outline-primary">Ver Tabla de Territorios</a>
+        </div>
+    </nav>
+
+    <div id="map-container">
+        <div id="sidebar">
+            <h4>Territorios</h4>
+            <!-- Botón para importar KML -->
+            <div class="file-input-wrapper btn btn-warning w-100 mb-3">
+                <span>Importar KML de Google Maps</span>
+                <input type="file" id="kml-importer" accept=".kml">
+            </div>
+            <div class="mb-3">
+                <input type="text" id="search-territory" class="form-control" placeholder="Buscar por número...">
+            </div>
+            <ul class="list-group" id="territory-list">
+                <!-- La lista de territorios se cargará aquí -->
+            </ul>
+        </div>
+        <div id="map"></div>
+    </div>
+
+    <!-- Modal de Progreso -->
+    <div class="modal fade" id="progressModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-3" id="progress-text">Procesando archivo KML...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/togeojson@0.16.0/togeojson.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            // --- CONFIGURACIÓN DE SUPABASE Y LEAFLET ---
+            const SUPABASE_URL = 'https://kkbrarkletdjxludmzfy.supabase.co';
+            const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYnJhcmtsZXRkanhsdWRtemZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyMTExNjEsImV4cCI6MjA3Mzc4NzE2MX0.rAuD9BBBB6tSJ1jOL9t86je1oldk25n2WmDmehF-puA';
+            const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+            const map = L.map('map').setView([-34.78, -59.08], 13); // Centrado en Jáuregui/Luján, ajústalo si es necesario
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            let allTerritories = [];
+            let drawnLayers = new L.FeatureGroup().addTo(map);
+
+            // --- LÓGICA DE IMPORTACIÓN KML (SIMPLIFICADA) ---
+            const kmlImporter = document.getElementById('kml-importer');
+            const progressModal = new bootstrap.Modal(document.getElementById('progressModal'));
+            const progressText = document.getElementById('progress-text');
+
+            kmlImporter.addEventListener('change', async function(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                progressModal.show();
+                progressText.textContent = `Procesando archivo: ${file.name}...`;
+                
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    try {
+                        const kmlText = e.target.result;
+                        const kml = new DOMParser().parseFromString(kmlText, 'text/xml');
+                        const geoJson = toGeoJSON.kml(kml);
+
+                        const updates = [];
+                        
+                        geoJson.features.forEach(feature => {
+                            const territoryName = feature.properties.name || '';
+                            const territoryNumMatch = territoryName.match(/\d+/);
+                            if (!territoryNumMatch) return;
+                            const territoryNum = territoryNumMatch[0];
+
+                            // LÓGICA SIMPLIFICADA: Buscar solo por el número de territorio
+                            const territory = allTerritories.find(t => t.territorio_num == territoryNum);
+
+                            if (territory && feature.geometry) {
+                                updates.push({
+                                    id: territory.id,
+                                    geometria: feature.geometry
+                                });
+                            }
+                        });
+
+                        if (updates.length === 0) {
+                            alert(`No se encontraron territorios coincidentes en "${file.name}".\n\nAsegúrate de que los nombres de los polígonos sean los números de territorio y que esos territorios ya existan en la tabla principal.`);
+                            progressModal.hide();
+                            return;
+                        }
+                        
+                        progressText.textContent = `Actualizando ${updates.length} territorios...`;
+
+                        const { error } = await db.from('territorios').upsert(updates);
+
+                        if (error) {
+                            console.error("Error al actualizar geometrías:", error);
+                            alert("Hubo un error al guardar las formas. Revisa la consola (F12).");
+                        } else {
+                            alert(`¡Éxito! Se han importado las formas de ${updates.length} territorios desde "${file.name}".`);
+                            await initialize(); // Recargar todo
+                        }
+                    } catch (e) {
+                        console.error("Error al procesar el archivo KML:", e);
+                        alert("El archivo KML parece tener un formato incorrecto y no se pudo procesar.");
+                    } finally {
+                        progressModal.hide();
+                        event.target.value = ''; // Resetear input
+                    }
+                };
+                reader.readAsText(file);
+            });
+            
+            // --- CÓDIGO RESTANTE (SIN CAMBIOS) ---
+            async function initialize() { const { data, error } = await db.from('territorios').select('*'); if (error) { console.error("Error al cargar:", error); return; } allTerritories = data; renderTerritoryList(allTerritories); drawAllShapes(); }
+            function renderTerritoryList(territories) { const list = document.getElementById('territory-list'); list.innerHTML = ''; territories.forEach(t => { const li = document.createElement('li'); li.className = 'list-group-item d-flex justify-content-between align-items-center territory-list-item'; li.dataset.id = t.id; const shapeIcon = t.geometria ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>'; li.innerHTML = `<span>Nº ${t.territorio_num} (${t.mapa})</span> ${shapeIcon}`; list.appendChild(li); }); }
+            function drawAllShapes() { drawnLayers.clearLayers(); let bounds; allTerritories.forEach(t => { if (t.geometria) { const layer = L.geoJSON(t.geometria, { style: getStyleByStatus(t.estado) }).bindPopup(`<b>Territorio Nº ${t.territorio_num}</b><br>${t.mapa}<br>Estado: ${t.estado || 'Disponible'}`); drawnLayers.addLayer(layer.getLayers()[0]); if (!bounds) { bounds = layer.getBounds(); } else { bounds.extend(layer.getBounds()); } } }); if(bounds) { map.fitBounds(bounds); } }
+            function getStyleByStatus(status) { switch (status) { case 'completado': return { color: '#28a745', weight: 2, fillOpacity: 0.3 }; case 'pendiente': return { color: '#ffc107', weight: 2, fillOpacity: 0.3 }; case 'incompleto': return { color: '#dc3545', weight: 2, fillOpacity: 0.3 }; default: return { color: '#6c757d', weight: 2, fillOpacity: 0.3 }; } }
+            document.getElementById('search-territory').addEventListener('input', (e) => { const searchTerm = e.target.value.toLowerCase(); const filtered = allTerritories.filter(t => t.territorio_num.toString().toLowerCase().includes(searchTerm)); renderTerritoryList(filtered); });
+            initialize();
+        });
+    </script>
+</body>
+</html>
