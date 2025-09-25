@@ -50,30 +50,23 @@
 
             // --- LÓGICA DE AUTENTICACIÓN ---
             db.auth.onAuthStateChange(async (event, session) => {
+                // Si hay una sesión, independientemente del evento, mostramos la app.
                 if (session) {
                     mainContent.style.display = 'block';
                     loginModal.hide();
-                    if (event === 'SIGNED_IN') { await loadTerritories(); }
+                    // Cargamos los datos solo si no están ya cargados.
+                    if (allTerritories.length === 0) {
+                        await loadTerritories();
+                    }
                 } else {
                     mainContent.style.display = 'none';
                     tableBody.innerHTML = '';
+                    allTerritories = []; // Limpiamos los datos al salir
                     loginModal.show();
                 }
             });
 
-            async function checkInitialSession() {
-                const { data: { session } } = await db.auth.getSession();
-                if (session) {
-                    mainContent.style.display = 'block';
-                    loginModal.hide();
-                    await loadTerritories();
-                } else {
-                    mainContent.style.display = 'none';
-                    loginModal.show();
-                }
-            }
-
-            loginForm.addEventListener('submit', async (e) => { e.preventDefault(); const email = document.getElementById('email').value; const password = document.getElementById('password').value; const { error } = await db.auth.signInWithPassword({ email, password }); if (error) { loginError.textContent = 'Email o contraseña incorrectos.'; loginError.style.display = 'block'; } else { loginError.style.display = 'none'; } });
+            loginForm.addEventListener('submit', async (e) => { e.preventDefault(); const email = document.getElementById('email').value; const password = document.getElementById('password').value; await db.auth.signInWithPassword({ email, password }); });
             logoutBtn.addEventListener('click', async () => { await db.auth.signOut(); });
 
             // --- LÓGICA DE LA APLICACIÓN (CRUD) ---
@@ -88,9 +81,6 @@
             pdfButton.addEventListener('click', function () { const { jsPDF } = window.jspdf; const doc = new jsPDF(); const headers = Array.from(document.querySelectorAll('#tabla-territorios thead th')).map(th => th.textContent).slice(0, -1); const body = Array.from(document.querySelectorAll('#tabla-territorios tbody tr')).filter(r => r.style.display !== 'none').map(r => Array.from(r.querySelectorAll('td')).map(td => td.textContent).slice(0, -1)); doc.autoTable({ head: [headers], body: body, startY: 20, headStyles: { fillColor: [41, 49, 51] }, didDrawPage: (data) => { doc.setFontSize(18); doc.text("Reporte de Territorios - Congregación Jáuregui", data.settings.margin.left, 15); } }); doc.save('reporte-territorios-jauregui.pdf'); });
             function getEstadoBadge(estado) { switch(estado) { case 'completado': return '<span class="badge bg-success">Completado</span>'; case 'incompleto': return '<span class="badge bg-danger">Incompleto</span>'; default: return '<span class="badge bg-warning text-dark">Pendiente</span>'; } }
             function filterTable() { const vE=filterEstado.value,vT=filterTerritorio.value.toLowerCase(),vA=filterAsignado.value.toLowerCase(),vF=filterFecha.value.toLowerCase(); tableBody.querySelectorAll('tr').forEach(row => { const cE=row.cells[4].textContent.trim(),cT=row.cells[1].textContent.toLowerCase(),cA=row.cells[2].textContent.toLowerCase(),cF=row.cells[3].textContent.toLowerCase(); const mE=vE===''||cE===vE,mT=cT.startsWith(vT),mA=cA.includes(vA),mF=cF.includes(vF); row.style.display = mE&&mT&&mA&&mF ? '' : 'none'; }); } filterEstado.addEventListener('change', filterTable); filterTerritorio.addEventListener('input', filterTable); filterAsignado.addEventListener('input', filterTable); filterFecha.addEventListener('input', filterTable);
-        
-            // --- INICIAR LA APLICACIÓN ---
-            checkInitialSession();
         });
     </script>
 </body>
