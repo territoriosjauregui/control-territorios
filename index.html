@@ -49,23 +49,6 @@
             const modalLabel = document.getElementById('territorioModalLabel');
 
             // --- LÓGICA DE AUTENTICACIÓN ---
-            db.auth.onAuthStateChange(async (event, session) => {
-                if (session) {
-                    mainContent.style.display = 'block';
-                    loginModal.hide();
-                    // Solo cargamos los datos si es la primera vez que inicia sesión en esta visita
-                    if (event === 'SIGNED_IN' || allTerritories.length === 0) {
-                        await loadTerritories();
-                    }
-                } else {
-                    mainContent.style.display = 'none';
-                    tableBody.innerHTML = '';
-                    allTerritories = [];
-                    loginModal.show();
-                }
-            });
-
-            // Comprobación inicial al cargar la página (soluciona el problema de F5)
             const { data: { session } } = await db.auth.getSession();
             if (session) {
                 mainContent.style.display = 'block';
@@ -76,6 +59,19 @@
                 loginModal.show();
             }
 
+            db.auth.onAuthStateChange(async (_event, session) => {
+                if (session) {
+                    mainContent.style.display = 'block';
+                    loginModal.hide();
+                    await loadTerritories();
+                } else {
+                    mainContent.style.display = 'none';
+                    tableBody.innerHTML = '';
+                    allTerritories = [];
+                    loginModal.show();
+                }
+            });
+
             loginForm.addEventListener('submit', async (e) => { e.preventDefault(); const email = document.getElementById('email').value; const password = document.getElementById('password').value; const { error } = await db.auth.signInWithPassword({ email, password }); if (error) { loginError.textContent = 'Email o contraseña incorrectos.'; loginError.style.display = 'block'; } else { loginError.style.display = 'none'; } });
             logoutBtn.addEventListener('click', async () => { await db.auth.signOut(); });
 
@@ -85,30 +81,23 @@
             
             saveChangesBtn.addEventListener('click', async function() {
                 if (!territorioForm.checkValidity()) { territorioForm.reportValidity(); return; }
-                saveChangesBtn.disabled = true; // Deshabilitar botón
                 const getValueOrNull = (id) => { const value = document.getElementById(id).value; return value === '' ? null : value; };
                 const territoryData = { mapa: getValueOrNull('territorio-mapa'), territorio_num: getValueOrNull('territorio-num'), asignado: getValueOrNull('territorio-asignado'), fecha: getValueOrNull('territorio-fecha'), estado: getValueOrNull('territorio-estado'), cara_faltante: getValueOrNull('territorio-cara'), calle_zona: getValueOrNull('territorio-calle'), descripcion: getValueOrNull('territorio-desc') };
-                
-                try {
-                    let error;
-                    if (editingTerritoryId) {
-                        const { error: updateError } = await db.from('territorios').update(territoryData).eq('id', editingTerritoryId);
-                        error = updateError;
-                    } else {
-                        const { error: insertError } = await db.from('territorios').insert([territoryData]);
-                        error = insertError;
-                    }
-                    if (error) throw error; // Lanzar el error para que lo capture el catch
-
-                    territorioForm.reset();
-                    territorioModal.hide();
-                    await loadTerritories(); // ¡La recarga automática!
-                } catch (error) {
+                let error;
+                if (editingTerritoryId) {
+                    const { error: updateError } = await db.from('territorios').update(territoryData).eq('id', editingTerritoryId);
+                    error = updateError;
+                } else {
+                    const { error: insertError } = await db.from('territorios').insert([territoryData]);
+                    error = insertError;
+                }
+                if (error) {
                     console.error('Error al guardar:', error);
                     alert('Hubo un error al guardar.');
-                } finally {
-                    saveChangesBtn.disabled = false; // Rehabilitar botón
-                    editingTerritoryId = null;
+                } else {
+                    territorioForm.reset();
+                    territorioModal.hide();
+                    await loadTerritories(); // **LA CORRECCIÓN ESTÁ AQUÍ**
                 }
             });
 
@@ -117,12 +106,11 @@
                 if (!target) return;
                 const row = target.closest('tr');
                 const territoryId = row.dataset.id;
-
                 if (target.classList.contains('btn-delete')) {
-                    if (confirm('¿Estás seguro de que quieres borrar este territorio?')) {
+                    if (confirm('¿Estás seguro?')) {
                         const { error } = await db.from('territorios').delete().eq('id', territoryId);
                         if (error) { console.error('Error al borrar:', error); } 
-                        else { await loadTerritories(); } // ¡La recarga automática!
+                        else { await loadTerritories(); } // **Y AQUÍ**
                     }
                 } else if (target.classList.contains('btn-edit')) {
                     const territory = allTerritories.find(t => t.id == territoryId);
@@ -145,10 +133,15 @@
             addTerritoryBtn.addEventListener('click', () => { editingTerritoryId = null; territorioForm.reset(); modalLabel.textContent = 'Añadir Territorio'; territorioModal.show(); });
 
             // --- CÓDIGO DE UTILIDADES ---
-            const themeToggler = document.getElementById('theme-toggler'); const pdfButton = document.getElementById('btn-pdf'); const territorioModalEl = document.getElementById('territorioModal'); const estadoSelect = document.getElementById('territorio-estado'); const incompleteFieldsWrapper = document.getElementById('campos-incompletos-wrapper'); const filterEstado = document.getElementById('filter-estado'); const filterTerritorio = document.getElementById('filter-territorio'); const filterAsignado = document.getElementById('filter-asignado'); const filterFecha = document.getElementById('filter-fecha'); const themeIcon = themeToggler.querySelector('i'); const currentTheme = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-bs-theme', currentTheme); updateThemeIcon(currentTheme); themeToggler.addEventListener('click', () => { let newTheme = document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark'; document.documentElement.setAttribute('data-bs-theme', newTheme); localStorage.setItem('theme', newTheme); updateThemeIcon(newTheme); }); function updateThemeIcon(theme) { themeIcon.className = theme === 'dark' ? 'bi bi-moon-stars-fill' : 'bi bi-sun-fill'; } function toggleIncompleteFields() { incompleteFieldsWrapper.style.display = (estadoSelect.value === 'incompleto') ? 'block' : 'none'; } estadoSelect.addEventListener('change', toggleIncompleteFields); territorioModalEl.addEventListener('show.bs.modal', toggleIncompleteFields);
+            const themeToggler = document.getElementById('theme-toggler'); const pdfButton = document.getElementById('btn-pdf'); const territorioModalEl = document.getElementById('territorioModal'); const estadoSelect = document.getElementById('territorio-estado'); const incompleteFieldsWrapper = document.getElementById('campos-incompletos-wrapper'); const filterEstado = document.getElementById('filter-estado'); const filterTerritorio = document.getElementById('filter-territorio'); const filterAsignado = document.getElementById('filter-asignado'); const filterFecha = document.getElementById('filter-fecha'); const themeIcon = themeToggler.querySelector('i'); const currentTheme = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-bs-theme', currentTheme); updateThemeIcon(currentTheme);
+            themeToggler.addEventListener('click', () => { let newTheme = document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark'; document.documentElement.setAttribute('data-bs-theme', newTheme); localStorage.setItem('theme', newTheme); updateThemeIcon(newTheme); });
+            function updateThemeIcon(theme) { themeIcon.className = theme === 'dark' ? 'bi bi-moon-stars-fill' : 'bi bi-sun-fill'; }
+            function toggleIncompleteFields() { incompleteFieldsWrapper.style.display = (estadoSelect.value === 'incompleto') ? 'block' : 'none'; }
+            estadoSelect.addEventListener('change', toggleIncompleteFields); territorioModalEl.addEventListener('show.bs.modal', toggleIncompleteFields);
             pdfButton.addEventListener('click', function () { const { jsPDF } = window.jspdf; const doc = new jsPDF(); const headers = Array.from(document.querySelectorAll('#tabla-territorios thead th')).map(th => th.textContent).slice(0, -1); const body = Array.from(document.querySelectorAll('#tabla-territorios tbody tr')).filter(r => r.style.display !== 'none').map(r => Array.from(r.querySelectorAll('td')).map(td => td.textContent).slice(0, -1)); doc.autoTable({ head: [headers], body: body, startY: 20, headStyles: { fillColor: [41, 49, 51] }, didDrawPage: (data) => { doc.setFontSize(18); doc.text("Reporte de Territorios - Congregación Jáuregui", data.settings.margin.left, 15); } }); doc.save('reporte-territorios-jauregui.pdf'); });
             function getEstadoBadge(estado) { switch(estado) { case 'completado': return '<span class="badge bg-success">Completado</span>'; case 'incompleto': return '<span class="badge bg-danger">Incompleto</span>'; default: return '<span class="badge bg-warning text-dark">Pendiente</span>'; } }
-            function filterTable() { const vE=filterEstado.value,vT=filterTerritorio.value.toLowerCase(),vA=filterAsignado.value.toLowerCase(),vF=filterFecha.value.toLowerCase(); tableBody.querySelectorAll('tr').forEach(row => { const cE=row.cells[4].textContent.trim(),cT=row.cells[1].textContent.toLowerCase(),cA=row.cells[2].textContent.toLowerCase(),cF=row.cells[3].textContent.toLowerCase(); const mE=vE===''||cE===vE,mT=cT.startsWith(vT),mA=cA.includes(vA),mF=cF.includes(vF); row.style.display = mE&&mT&&mA&&mF ? '' : 'none'; }); } filterEstado.addEventListener('change', filterTable); filterTerritorio.addEventListener('input', filterTable); filterAsignado.addEventListener('input', filterTable); filterFecha.addEventListener('input', filterTable);
+            function filterTable() { const vE=filterEstado.value,vT=filterTerritorio.value.toLowerCase(),vA=filterAsignado.value.toLowerCase(),vF=filterFecha.value.toLowerCase(); tableBody.querySelectorAll('tr').forEach(row => { const cE=row.cells[4].textContent.trim(),cT=row.cells[1].textContent.toLowerCase(),cA=row.cells[2].textContent.toLowerCase(),cF=row.cells[3].textContent.toLowerCase(); const mE=vE===''||cE===vE,mT=cT.startsWith(vT),mA=cA.includes(vA),mF=cF.includes(vF); row.style.display = mE&&mT&&mA&&mF ? '' : 'none'; }); }
+            filterEstado.addEventListener('change', filterTable); filterTerritorio.addEventListener('input', filterTable); filterAsignado.addEventListener('input', filterTable); filterFecha.addEventListener('input', filterTable);
         });
     </script>
 </body>
